@@ -1,0 +1,10 @@
+{
+  "name": "coop-statement-downloader",
+  "title": "Co-op Statement Downloader",
+  "id": "coop-statement-downloader@ricklupton.name",
+  "description": "Adds a download link to Co-operative Bank online statements to\ndownload your transactions in CSV format.\n\nThis is safe to use, as you log into your online banking account\nnormally and all processing is done locally in your browser.\n\nAdapted from \"Uncoop Me!\", a bookmarket created by Marc Palmer which\ndoes the same job. It stopped working for me (due to mixed content\nblocking [1]) so I converted it into this Firefox extension. The\noriginal bookmarket also lets you download the data in OFX format;\nthis extension currently only does CSV, but OFX support could be\nadded.\n\nReport any issues here:\nhttps://github.com/ricklupton/coop-statement-downloader/issues\n\n[1]: https://blog.mozilla.org/tanvi/2013/04/10/mixed-content-blocking-enabled-in-firefox-23/\n",
+  "author": "Rick Lupton <coop-statement-downloader@ricklupton.name>",
+  "homepage": "https://github.com/ricklupton/coop-statement-downloader",
+  "license": "Creative Commons Attribution-ShareAlike 3.0 (http://creativecommons.org/licenses/by-sa/3.0)",
+  "version": "0.1"
+}
