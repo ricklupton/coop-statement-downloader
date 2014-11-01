@@ -4,12 +4,13 @@ function quoteCSV(s) {
 
 
 function exporterGenerateCSV(lines) {
-    var output = 'Date,Description,Amount,Balance\n', line;
+    var output = 'Date,Description,Amount,Balance,Comment\n', line;
     $.each(lines, function(i, item) {
         line = [item.date,
                 item.description,
                 item.amount,
-                item.balance].map(quoteCSV).join(',');
+                item.balance,
+                item.comment].map(quoteCSV).join(',');
         output += line + '\n';
     });
     return output;
@@ -39,29 +40,49 @@ function parsePage() {
 
     // Get account name, sort code and number
     var accRegex = /^\s*([^0-9]+)\s+(\d\d-\d\d-\d\d)\s+(\d+)\s*$/g,
+        creditCardRegex = /^\s*([^0-9]+)\s+(\d+)\s*$/g,
         accountText = $('.field h4').text(),
-        match = accRegex.exec(accountText);
-    if (!match) {
-        console.error("Couldn't match account details: '" + accountText + "'");
+        match, accountName, accountType, sortCode, accountNumber,
+        statementDate, statementType;
+
+    // Try matching as bank account (sortcode, account number)
+    if ((match = accRegex.exec(accountText))) {
+        accountName = $.trim(match[1]);
+        sortCode = match[2].replace(/-/g, '');
+        accountNumber = match[3];
+        accountType = 'CURRENT ACCOUNT';
+
+        // Statement number & date
+        var $pageNumber = $('.field:contains("Page")'),
+            statementNumber = $pageNumber.text().replace('Page', '').trim();
+        statementDate = $pageNumber
+            .next('td')
+            .text().replace('Date', '').trim();
+        statementType = ((statementNumber.length > 0) ?
+                         'Statement' : 'Recent_transactions');
+
+    // Try matching as credit card
+    } else if ((match = creditCardRegex.exec(accountText))) {
+        accountName = $.trim(match[1]);
+        sortCode = '';
+        accountNumber = match[2];
+        accountType = 'CREDIT CARD';
+
+        // Statement number & date
+        var $date = $('.field:contains("Statement Date")'),
+        statementDate = $date.next('td').text().trim();
+        statementType = 'Statement';
+
+    } else {
+        console.debug("Couldn't match account details: '" + accountText + "'");
         return null;
     }
-    var accountName = $.trim(match[1]),
-        sortCode = match[2].replace(/-/g, ''),
-        accountNumber = match[3],
-        accountType = accountName.indexOf('SAV') >= 0 ? 'SAVINGS' : 'CHECKING';
-
-    // Statement number & date
-    var $pageNumber = $('.field:contains("Page")');
-    var statementNumber = $pageNumber
-        .text().replace('Page', '').trim();
-    var statementDate = $pageNumber
-        .next('td')
-        .text().replace('Date', '').trim();
 
     // Parse the table
     var statementTable = $('th:contains("Transaction")')
             .parents('table').get(0),
-        tableRows = $(statementTable).find('tr');
+        tableRows = $(statementTable).find('tr'),
+        last = null;
 
     var transactions = tableRows.map(function () {
         var $row = $(this),
@@ -72,16 +93,21 @@ function parsePage() {
             }).get(),
             amount = values[0] - values[1];
 
-        // Skip dodgy lines
-        if (date.length == 0)
+        // Lines without date can be extension of previous line
+        if (date.length == 0) {
+            if (last && last['comment'] == '')
+                last['comment'] = desc;
             return null;
+        }
 
-        return {
-            'date':        date,
+        last = {
+            'date':        cleanDate(date),
             'description': desc,
+            'comment':     '',
             'amount':      amount,
-            'balance':     values[2]
+            'balance':     values[2] ? values[2] : ''
         };
+        return last;
     }).get();
 
     if (transactions.length == 0) {
@@ -105,6 +131,13 @@ function parsePage() {
         endDate = transactions[transactions.length - 1].date;
     }
 
+    if (finalBalance == '') {
+        // Credit card - doesn't have running balance total
+        var $balance = $('.field:contains("Statement Balance")').next('.field');
+        finalBalance = parseAmount($balance.text());
+        transactions[transactions.length - 1].balance = finalBalance;
+    }
+
     return {
         accountName:      accountName,
         accountType:      accountType,
@@ -113,7 +146,7 @@ function parsePage() {
         transactions:     transactions,
         startDate:        startDate,
         endDate:          endDate,
-        statementNumber:  statementNumber,
+        statementType:    statementType,
         statementDate:    statementDate,
         statementBalance: finalBalance
     };
@@ -144,6 +177,9 @@ function cleanAccountName(s) {
 
 function cleanDate(s) {
     var parts = s.split('/');
+    if (parts.length != 3) {
+        return s;  // give up
+    }
     if (parts[0].length < 2) {
         parts[0] = '0'+parts[0];
     }
@@ -155,11 +191,10 @@ function cleanDate(s) {
 
 
 function downloadFilename(data) {
-    var isStatement = (data.statementNumber.length > 0);
-    var fn = (isStatement ? 'Statement_' : 'Recent_transactions_') +
-        cleanAccountName(data.accountName) + '_' +
-        data.accountNumber + '_' +
-        cleanDate(data.statementDate);
+    var fn = (data.statementType + '_' +
+              cleanAccountName(data.accountName) + '_' +
+              data.accountNumber + '_' +
+              cleanDate(data.statementDate));
     return fn;
 }
 
